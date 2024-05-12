@@ -1,99 +1,106 @@
+import pandas as pd
 import csv
 import time
 
-#Tienes que quitar todas las celdas convinadas
-#Tienes que quitar las columnas vacias dentro del archivo
-#Tienes que convertir todo a num (opcional)
-#Tienes que remplazar todas las ñ por n
-#Tienes que guardar el archivo como cedulas_comas.csv (separado por comas)
-#tienes que meterte al csv y poner todo en numeros
+xlsFile = 'rpt_VentasComisionables_SinCorte.xls'
+csvFile = 'rpt_VentasComisionables_SinCorte.csv'
+csvFinalFile = 'TeamSales.csv'
 
-def get_unidades(file_csv):
-    unidad_dict = {}
-    unidad = ''
+
+df = pd.read_excel(xlsFile)
+df.to_csv(csvFile, index=False)
+
+print(f"The file '{csvFile}' has been successfully created.")
+
+# Gets the range of cells for each team. 
+# Example: Unit: 1/CENTRAL UNIT: [11, 124]. 
+# With this we can then iterate over these ranges to extract the values and modify them.
+def getTeam():
+    team = {}
+    teamName = ''
     initialRow = 0
 
-    with open(file_csv, 'r', encoding='latin-1') as file:
+    with open(csvFile, 'r', encoding='latin-1') as file:
         csvreader = csv.reader(file)
         rows = list(csvreader)
         for i, row in enumerate(rows):
-            for value in row:
-                if value.startswith("Unidad") and unidad == '' and initialRow == 0:
-                    unidad = value
+            for value in row[:3]: #As the team name is always in the 3rd position, it is convenient to cut the rows to 3 values.  
+                if value.startswith("Unidad") and teamName == '' and initialRow == 0:
+                    teamName = value
                     initialRow = i + 3
                     break
 
-                if value.startswith("Unidad") and unidad != '' and initialRow != 0:
-                    unidad_dict[unidad] = {'initial': initialRow, 'final': i - 3}
-                    unidad = value
+                if value.startswith("Unidad") and teamName != '' and initialRow != 0:
+                    team[teamName] = {'initial': initialRow, 'final': i - 3}
+                    teamName = value
                     initialRow = i + 3
                     break
 
-        if unidad != '' and initialRow != 0:
-            unidad_dict[unidad] = {'initial': initialRow, 'final': len(rows) - 6}
+        if teamName != '' and initialRow != 0:
+            team[teamName] = {'initial': initialRow, 'final': len(rows) - 6}
 
-    return unidad_dict
+    return team
 
-def get_sales(file_csv, unidad_dict):
+#With the cells range of each team, now the sales are obtain. 
+#Since the document has positive and negative sales, due to cancelations.
+#Its important to recalculate the sales by merging the 2 rows into one.  
+def getTeamSales(team):
     mod_rows = []
-    with open(file_csv, 'r', encoding='latin-1') as file:
+
+    with open(csvFile, 'r', encoding='latin-1') as file:
         csvreader = csv.reader(file)
+        maxColumn = len(next(csvreader)) - 1
         rows = list(csvreader)
 
-        for key, values in unidad_dict.items():
+        for key, values in team.items():
             start = values['initial']
             end = values['final']
 
             for i in range(start, end, 2):
-                current_row = rows[i]
-                previous = rows[i-1]
-                previous[0] = key.replace("Unidad:", "").strip()
+                salesRow = rows[i]
+                cancelsRow = rows[i-1]
+                salesRow[0] = key.replace("Unidad: ", "").strip()
+                print(salesRow)
                 
-                if current_row[52] == '0.00':
-                    previous[52] = current_row[52] #ARREGLAR ESTO, IDENTIFICA LA ULTIMA SEMANA
+                # if salesRow[maxColumn] == '0.00':
+                #     cancelsRow[maxColumn] = salesRow[maxColumn]
 
-                for index, value in enumerate(current_row):         
-                    if value != '0.00' and value != '':
-                        amount = float(value)
+                for index, value in enumerate(salesRow):         
+                    if value != '0.00' and value != '0' and value != '':
+                        amount = float(value.replace(',', ''))
                         if amount < 0:
-                            if previous[index] == '':
-                                previous[index] += str(amount)
+                            if cancelsRow[index] == '':
+                                cancelsRow[index] += str(amount)
                             else:
-                                previous[index] = str(round(float(previous[index]) + amount, 2))
-                        else:
-                            previous[index] += str(amount)
+                                cancelsRow[index] = str(round(float(cancelsRow[index].replace(',', '')) + amount, 2))
 
-                    # print(previous)
-                    # print(f"   Fila: {i+1}")
-                    # print(f"   Indice: {index+1}")
-                    # print(f"   Cantidad a cambiar: {amount}")
-                    # print("------")
-                mod_rows.append(previous)
-            # mod_rows.append('')#quitar para reto
+                        else:
+                            cancelsRow[index] += str(amount)
+
+                mod_rows.append(cancelsRow)
     return mod_rows
 
-def new_csv(file_csv, mod_rows):
-    new_csv = file_csv.replace('.csv', '_mod.csv')
 
-    with open(new_csv, 'w', newline='', encoding='latin-1') as new_file:
+def new_csv(teamSales):
+    with open(csvFinalFile, 'w', newline='', encoding='latin-1') as new_file:
         csvwriter = csv.writer(new_file)
-        csvwriter.writerows(mod_rows)
+        
+        csvwriter.writerows(teamSales)
 
-    print(f"Se ha guardado el archivo modificado en: {new_csv}")
-                
-# Registra el tiempo de inicio
 start_time = time.time()
 
-file_csv = '../INPUT/rpt_VentasComisionables_SinCorte.csv'
-unidad_dict = get_unidades(file_csv)
+print(f"Getting all teams...")
+team = getTeam()
 
 print("Unidades encontradas:")
-for key, values in unidad_dict.items():
+for key, values in team.items():
     print(f"{key}: [{values['initial']}, {values['final']}]")
 
-mod_rows = get_sales(file_csv, unidad_dict)
-new_csv(file_csv, mod_rows)
+# print(f"Getting all team sales...")
+# teamSales = getTeamSales(team)
+# print(f"Creating new file...")
+# new_csv(teamSales)
 
 end_time = time.time()
 elapsed_time = end_time - start_time
-print(f"Tiempo de ejecución: {elapsed_time} segundos")
+print(f"Tiempo de ejecución: {elapsed_time} segundos")       
