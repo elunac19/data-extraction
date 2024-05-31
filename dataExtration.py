@@ -1,5 +1,6 @@
 import pandas as pd
 import csv
+import os
 import time
 
 xlsFile = 'rpt_VentasComisionables_SinCorte.xls'
@@ -49,35 +50,29 @@ def getTeamSales(team):
 
     with open(csvFile, 'r', encoding='latin-1') as file:
         csvreader = csv.reader(file)
-        maxColumn = len(next(csvreader)) - 1
         rows = list(csvreader)
 
         for key, values in team.items():
             start = values['initial']
             end = values['final']
+            temp = 0
 
             for i in range(start, end, 2):
-                salesRow = rows[i]
-                cancelsRow = rows[i-1]
+                salesRow = rows[i-1]
+                cancelsRow = rows[i]
+                unifiedData = []
                 salesRow[0] = key.replace("Unidad: ", "").strip()
-                print(salesRow)
                 
-                # if salesRow[maxColumn] == '0.00':
-                #     cancelsRow[maxColumn] = salesRow[maxColumn]
-
-                for index, value in enumerate(salesRow):         
-                    if value != '0.00' and value != '0' and value != '':
-                        amount = float(value.replace(',', ''))
-                        if amount < 0:
-                            if cancelsRow[index] == '':
-                                cancelsRow[index] += str(amount)
-                            else:
-                                cancelsRow[index] = str(round(float(cancelsRow[index].replace(',', '')) + amount, 2))
-
-                        else:
-                            cancelsRow[index] += str(amount)
-
-                mod_rows.append(cancelsRow)
+                unifiedData.append(salesRow[0]) #unidad
+                unifiedData.append(salesRow[1]) #clave
+                unifiedData.append(salesRow[2]) #id
+                for j in range(3, len(salesRow)):  
+                    if salesRow[j] != '': 
+                        if cancelsRow[j] != '' and cancelsRow[j] != '0':
+                            salesRow[j] = str( float(salesRow[j]) + float(cancelsRow[j]) )
+                        unifiedData.append(salesRow[j])
+                mod_rows.append(unifiedData)
+                
     return mod_rows
 
 
@@ -87,20 +82,30 @@ def new_csv(teamSales):
         
         csvwriter.writerows(teamSales)
 
-start_time = time.time()
+# start_time = time.time()
 
 print(f"Getting all teams...")
 team = getTeam()
 
-print("Unidades encontradas:")
-for key, values in team.items():
-    print(f"{key}: [{values['initial']}, {values['final']}]")
+# print("Unidades encontradas:")
+# for key, values in team.items():
+#     print(f"{key}: [{values['initial']}, {values['final']}]")
 
-# print(f"Getting all team sales...")
-# teamSales = getTeamSales(team)
-# print(f"Creating new file...")
-# new_csv(teamSales)
+print(f"Getting all team sales...")
+teamSales = getTeamSales(team)
 
-end_time = time.time()
-elapsed_time = end_time - start_time
-print(f"Tiempo de ejecución: {elapsed_time} segundos")       
+print(f"Creating new file...")
+new_csv(teamSales)
+
+if os.path.exists(csvFile):
+    try:
+        os.remove(csvFile)
+        print("El archivo CSV se ha borrado exitosamente.")
+    except OSError as e:
+        print(f"No se pudo borrar el archivo: {e}")
+else:
+    print("El archivo CSV no existe.")
+
+# end_time = time.time()
+# elapsed_time = end_time - start_time
+# print(f"Tiempo de ejecución: {elapsed_time} segundos")       
