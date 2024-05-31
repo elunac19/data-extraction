@@ -1,11 +1,11 @@
 import pandas as pd
+import os
 import csv
 import time
 
 xlsFile = 'rpt_VentasComisionables_SinCorte.xls'
 csvFile = 'rpt_VentasComisionables_SinCorte.csv'
 csvFinalFile = 'TeamSales.csv'
-
 
 df = pd.read_excel(xlsFile)
 df.to_csv(csvFile, index=False)
@@ -49,42 +49,36 @@ def getTeamSales(team):
 
     with open(csvFile, 'r', encoding='latin-1') as file:
         csvreader = csv.reader(file)
-        maxColumn = len(next(csvreader)) - 1
         rows = list(csvreader)
 
         for key, values in team.items():
             start = values['initial']
             end = values['final']
+            temp = 0
 
             for i in range(start, end, 2):
-                salesRow = rows[i]
-                cancelsRow = rows[i-1]
+                salesRow = rows[i-1]
+                cancelsRow = rows[i]
+                unifiedData = []
                 salesRow[0] = key.replace("Unidad: ", "").strip()
-                print(salesRow)
                 
-                # if salesRow[maxColumn] == '0.00':
-                #     cancelsRow[maxColumn] = salesRow[maxColumn]
+                unifiedData.append(salesRow[0]) #unidad
+                unifiedData.append(salesRow[1]) #clave
+                unifiedData.append(salesRow[2]) #id
+                for j in range(3, len(salesRow)):  
+                    if salesRow[j] != '': 
+                        if cancelsRow[j] != '' and cancelsRow[j] != '0':
+                            salesRow[j] = str( float(salesRow[j]) + float(cancelsRow[j]) )
+                        unifiedData.append(salesRow[j])
 
-                for index, value in enumerate(salesRow):         
-                    if value != '0.00' and value != '0' and value != '':
-                        amount = float(value.replace(',', ''))
-                        if amount < 0:
-                            if cancelsRow[index] == '':
-                                cancelsRow[index] += str(amount)
-                            else:
-                                cancelsRow[index] = str(round(float(cancelsRow[index].replace(',', '')) + amount, 2))
+                mod_rows.append(unifiedData)
 
-                        else:
-                            cancelsRow[index] += str(amount)
-
-                mod_rows.append(cancelsRow)
     return mod_rows
 
 
 def new_csv(teamSales):
-    with open(csvFinalFile, 'w', newline='', encoding='latin-1') as new_file:
+    with open("ee", 'w', newline='', encoding='latin-1') as new_file:
         csvwriter = csv.writer(new_file)
-        
         csvwriter.writerows(teamSales)
 
 start_time = time.time()
@@ -92,15 +86,26 @@ start_time = time.time()
 print(f"Getting all teams...")
 team = getTeam()
 
-print("Unidades encontradas:")
-for key, values in team.items():
-    print(f"{key}: [{values['initial']}, {values['final']}]")
+# print("Unidades encontradas:")
+# for key, values in team.items():
+#     print(f"{key}: [{values['initial']}, {values['final']}]")
 
-# print(f"Getting all team sales...")
-# teamSales = getTeamSales(team)
-# print(f"Creating new file...")
-# new_csv(teamSales)
+print(f"Getting all team sales...")
+teamSales = getTeamSales(team)
+print(f"Creating new file...")
+new_csv(teamSales)
+
+try:
+    os.remove(csvFile)
+    print(f"The file '{csvFile}' has been successfully deleted.")
+except FileNotFoundError:
+    print(f"The file '{csvFile}' does not exist.")
+except PermissionError:
+    print(f"You don't have permission to delete the file '{csvFile}'.")
+except Exception as e:
+    print(f"An error occurred while trying to delete the file: {e}")
 
 end_time = time.time()
 elapsed_time = end_time - start_time
-print(f"Tiempo de ejecución: {elapsed_time} segundos")       
+print(f"Tiempo de ejecución: {elapsed_time} segundos")    
+
